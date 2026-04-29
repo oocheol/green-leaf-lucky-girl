@@ -146,7 +146,7 @@ function updateHud(now) {
   luckyStatusEl.classList.toggle("windy", isWindy(now));
   if (isFortuneRaining(now)) {
     luckyStatusEl.textContent = "행운 뿌리기";
-  } else if (now < tomatoDanceUntil) {
+  } else if (isTomatoDancing(now)) {
     luckyStatusEl.textContent = "토마토 댄스";
   } else if (canFly()) {
     luckyStatusEl.textContent = "자유 비행";
@@ -188,8 +188,32 @@ function isFortuneRaining(now) {
   return now < fortuneRainUntil;
 }
 
+function isTomatoDancing(now) {
+  return now < tomatoDanceUntil;
+}
+
 function update(dt, now) {
   floatTime += dt;
+  if (isTomatoDancing(now)) {
+    player.vx *= 0.84;
+    player.vy = 0;
+    if (!canFly()) {
+      player.y = GROUND_Y;
+      player.grounded = true;
+      player.jumpCount = 0;
+    }
+    confetti.forEach((piece) => {
+      piece.life -= dt;
+      piece.x += piece.vx * dt;
+      piece.y += piece.vy * dt;
+      piece.vy += 130 * dt;
+    });
+    confetti = confetti.filter((piece) => piece.life > 0);
+    spawnDanceSparkles(dt, now);
+    updateHud(now);
+    return;
+  }
+
   const input = { x: 0, y: 0 };
 
   if (keyState.has("ArrowLeft") || keyState.has("KeyA") || keyState.has("left")) input.x -= 1;
@@ -244,6 +268,7 @@ function update(dt, now) {
   }
   if (Math.abs(player.vx) > 10) player.face = Math.sign(player.vx);
 
+  let tomatoCaughtThisFrame = false;
   const playerRadius = isLucky(now) ? 68 : PLAYER_BASE_RADIUS;
   leaves = leaves.filter((leaf) => {
     leaf.spin += dt * (leaf.clover ? 4.6 : 3.2);
@@ -263,6 +288,7 @@ function update(dt, now) {
       if (leaf.tomato) {
         score += 5;
         tomatoDanceUntil = now + TOMATO_DANCE_DURATION;
+        tomatoCaughtThisFrame = true;
       } else {
         score += leaf.clover ? 7 : 1;
       }
@@ -272,6 +298,7 @@ function update(dt, now) {
     }
     return leaf.y < WORLD_HEIGHT + 90;
   });
+  if (tomatoCaughtThisFrame) leaves = [];
 
   if (!flyAnnounced && score >= FLY_SCORE) {
     flyAnnounced = true;
@@ -309,7 +336,7 @@ function draw(now) {
   leaves.forEach(drawCollectible);
   confetti.forEach(drawConfetti);
   drawPlayer(now);
-  if (now < tomatoDanceUntil) drawTomatoDance(now);
+  if (isTomatoDancing(now)) drawTomatoDance(now);
 }
 
 function drawMeadow() {
@@ -376,11 +403,16 @@ function drawCollectible(leaf) {
 function drawPlayer(now) {
   const lucky = isLucky(now);
   const s = getPlayerScale(now);
-  const bounce = Math.sin(floatTime * 9) * (Math.abs(player.vx) + Math.abs(player.vy) > 20 ? 3 : 1);
+  const dancing = isTomatoDancing(now);
+  const danceBeat = dancing ? Math.sin(floatTime * 18) : 0;
+  const bounce = dancing
+    ? Math.abs(Math.sin(floatTime * 16)) * -18
+    : Math.sin(floatTime * 9) * (Math.abs(player.vx) + Math.abs(player.vy) > 20 ? 3 : 1);
 
   ctx.save();
-  ctx.translate(player.x, player.y + bounce);
-  ctx.scale(s * player.face, s);
+  ctx.translate(player.x + danceBeat * 34, player.y + bounce);
+  if (dancing) ctx.rotate(Math.sin(floatTime * 14) * 0.22);
+  ctx.scale(s * player.face * (dancing ? 1 + Math.abs(danceBeat) * 0.1 : 1), s * (dancing ? 1 - Math.abs(danceBeat) * 0.05 : 1));
 
   ctx.fillStyle = lucky ? "rgba(246, 207, 79, 0.34)" : "rgba(49, 151, 84, 0.18)";
   ctx.beginPath();
@@ -446,7 +478,7 @@ function drawPlayer(now) {
   ctx.stroke();
 
   drawCheekFlower(-20, -36);
-  drawBasket(0, -82, now);
+  drawBasket(dancing ? Math.sin(floatTime * 22) * 18 : 0, dancing ? -86 + Math.cos(floatTime * 18) * 12 : -82, now);
 
   if (lucky) {
     ctx.fillStyle = "#f7d75b";
@@ -597,24 +629,80 @@ function drawTomatoDance(now) {
   const life = Math.max(0, (tomatoDanceUntil - now) / TOMATO_DANCE_DURATION);
   ctx.save();
   ctx.globalAlpha = Math.min(1, life * 2.2);
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
-  roundedRect(82, 118, WORLD_WIDTH - 164, 86, 28);
+  ctx.fillStyle = "rgba(255, 251, 218, 0.9)";
+  roundedRect(62, 106, WORLD_WIDTH - 124, 104, 30);
   ctx.fill();
   ctx.fillStyle = "#b83b2e";
-  ctx.font = "900 34px 'Trebuchet MS', sans-serif";
+  ctx.font = "900 36px 'Trebuchet MS', sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("토마토 될거야~! 쥬스 될거야~!", WORLD_WIDTH / 2, 160);
-  for (let i = 0; i < 3; i += 1) {
-    const x = WORLD_WIDTH / 2 + (i - 1) * 116;
-    const y = 275 + Math.sin(floatTime * 9 + i) * 18;
+  ctx.fillText("토마토 될거야~! 쥬스 될거야~!", WORLD_WIDTH / 2, 158);
+
+  ctx.fillStyle = "rgba(255, 96, 76, 0.16)";
+  ctx.beginPath();
+  ctx.ellipse(WORLD_WIDTH / 2, GROUND_Y - 54, 330 + Math.sin(floatTime * 12) * 18, 118, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  for (let i = 0; i < 4; i += 1) {
+    const x = WORLD_WIDTH / 2 + (i - 1.5) * 105 + Math.sin(floatTime * 16 + i) * 22;
+    const y = 288 + Math.sin(floatTime * 13 + i) * 36;
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(Math.sin(floatTime * 7 + i) * 0.28);
-    drawTomato(0, 0, 38, floatTime + i);
+    ctx.rotate(Math.sin(floatTime * 18 + i) * 0.55);
+    drawTomato(0, 0, 40 + Math.sin(floatTime * 12 + i) * 5, floatTime * 2 + i);
     ctx.restore();
   }
+
+  ctx.save();
+  const partnerX = clamp(player.x + 145 + Math.sin(floatTime * 15) * 42, 130, WORLD_WIDTH - 120);
+  const partnerY = player.y - 64 + Math.abs(Math.sin(floatTime * 18)) * -32;
+  ctx.translate(partnerX, partnerY);
+  ctx.rotate(Math.sin(floatTime * 20) * 0.5);
+  drawTomato(0, 0, 58 + Math.sin(floatTime * 16) * 7, floatTime * 2.3);
   ctx.restore();
+
+  ctx.strokeStyle = "#f7c84b";
+  ctx.lineWidth = 7;
+  ctx.lineCap = "round";
+  for (let i = 0; i < 8; i += 1) {
+    const x = 90 + i * 96;
+    const y = 395 + Math.sin(floatTime * 11 + i) * 42;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + 20, y - 42, x + 44, y - 4);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x + 49, y + 4, 8, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function spawnDanceSparkles(dt, now) {
+  const count = Math.ceil(26 * dt);
+  for (let i = 0; i < count; i += 1) {
+    const angle = Math.random() * Math.PI * 2;
+    confetti.push({
+      x: player.x + Math.cos(angle) * (80 + Math.random() * 150),
+      y: player.y - 95 + Math.sin(angle) * (40 + Math.random() * 85),
+      vx: Math.cos(angle) * (110 + Math.random() * 230),
+      vy: Math.sin(angle) * (110 + Math.random() * 200) - 120,
+      life: 0.55 + Math.random() * 0.75,
+      color: Math.random() < 0.5 ? "#ff6d5e" : "#ffd95c",
+      size: 6 + Math.random() * 8,
+    });
+  }
+  if (Math.floor(now / 120) % 2 === 0) {
+    confetti.push({
+      x: player.x + Math.sin(floatTime * 20) * 120,
+      y: player.y - 160 + Math.cos(floatTime * 18) * 40,
+      vx: -80 + Math.random() * 160,
+      vy: -180 - Math.random() * 80,
+      life: 0.7,
+      color: "#ff8a75",
+      size: 12,
+    });
+  }
 }
 
 function spawnFortuneSparkles(dt, now) {
