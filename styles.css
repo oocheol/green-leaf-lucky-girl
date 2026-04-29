@@ -1,0 +1,240 @@
+:root {
+  color-scheme: light;
+  font-family: "Trebuchet MS", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  background: #9edfc2;
+  color: #244238;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+
+body {
+  background:
+    radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.65) 0 56px, transparent 57px),
+    radial-gradient(circle at 82% 12%, rgba(255, 247, 179, 0.58) 0 74px, transparent 75px),
+    linear-gradient(145deg, #bdf3d1 0%, #76cda8 52%, #f8dc86 100%);
+}
+
+button {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.game-shell {
+  display: grid;
+  width: 100vw;
+  height: 100dvh;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  place-items: center;
+}
+
+.game-card {
+  position: relative;
+  width: min(100%, 540px);
+  height: min(100%, 860px);
+  overflow: hidden;
+  border: 4px solid rgba(255, 255, 255, 0.8);
+  border-radius: 28px;
+  background: #c8f0cd;
+  box-shadow: 0 24px 58px rgba(32, 96, 68, 0.24);
+}
+
+#game {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #b8edc5;
+}
+
+.hud {
+  position: absolute;
+  z-index: 3;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(72px, 1fr)) auto;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+
+.hud > div {
+  min-height: 54px;
+  padding: 8px 10px;
+  border: 2px solid rgba(255, 255, 255, 0.78);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 8px 18px rgba(62, 132, 83, 0.12);
+  backdrop-filter: blur(8px);
+}
+
+.label {
+  margin: 0 0 2px;
+  color: #5b8169;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.hud strong {
+  display: block;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.status-pill {
+  display: grid;
+  min-width: 124px;
+  place-items: center;
+  color: #2f5a43;
+  font-size: 13px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.status-pill.lucky {
+  color: #8c5a00;
+  background: rgba(255, 237, 139, 0.82);
+}
+
+.overlay {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  padding: 30px;
+  color: #244238;
+  text-align: center;
+  background: rgba(210, 249, 218, 0.72);
+  backdrop-filter: blur(7px);
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.overlay h1 {
+  margin: 0 0 12px;
+  color: #1f7c4a;
+  font-size: clamp(34px, 10vw, 58px);
+  line-height: 1;
+  text-shadow: 0 4px 0 rgba(255, 255, 255, 0.85);
+}
+
+.overlay p {
+  max-width: 360px;
+  margin: 0 0 24px;
+  font-size: 16px;
+  line-height: 1.55;
+  font-weight: 700;
+}
+
+.overlay button {
+  min-width: 150px;
+  min-height: 54px;
+  padding: 0 24px;
+  border: 3px solid #fff7a8;
+  border-radius: 999px;
+  color: #fff;
+  background: #28a765;
+  font-size: 22px;
+  font-weight: 900;
+  box-shadow: 0 10px 0 #167045, 0 16px 28px rgba(22, 112, 69, 0.22);
+}
+
+.overlay button:active {
+  transform: translateY(5px);
+  box-shadow: 0 5px 0 #167045, 0 10px 18px rgba(22, 112, 69, 0.18);
+}
+
+.controls {
+  position: absolute;
+  z-index: 4;
+  right: 18px;
+  bottom: 18px;
+  display: grid;
+  gap: 7px;
+  justify-items: center;
+}
+
+.controls div {
+  display: flex;
+  gap: 7px;
+}
+
+.controls button {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  color: #246046;
+  background: rgba(255, 255, 255, 0.63);
+  font-size: 18px;
+  font-weight: 900;
+  box-shadow: 0 7px 14px rgba(41, 105, 71, 0.16);
+  backdrop-filter: blur(7px);
+}
+
+.controls button:active,
+.controls button.pressed {
+  color: #fff;
+  background: #31aa68;
+  transform: translateY(2px);
+}
+
+@media (pointer: fine) and (min-width: 780px) {
+  .controls {
+    opacity: 0.4;
+  }
+}
+
+@media (max-width: 420px) {
+  .game-shell {
+    padding: 0;
+  }
+
+  .game-card {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .hud {
+    top: max(10px, env(safe-area-inset-top));
+    left: 10px;
+    right: 10px;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .status-pill {
+    grid-column: 1 / -1;
+    min-height: 36px;
+  }
+
+  .controls {
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .controls button {
+    width: 50px;
+    height: 50px;
+  }
+}

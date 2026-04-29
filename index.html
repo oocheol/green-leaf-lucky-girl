@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>초록잎 럭키걸</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="game-shell">
+      <section class="game-card" aria-label="초록잎 럭키걸 게임">
+        <div class="hud">
+          <div>
+            <p class="label">모은 행운</p>
+            <strong id="score">0</strong>
+          </div>
+          <div>
+            <p class="label">최고 기록</p>
+            <strong id="best">0</strong>
+          </div>
+          <div class="status-pill" id="luckyStatus">평범한 잎 사냥꾼</div>
+        </div>
+
+        <canvas id="game" width="900" height="1400" aria-label="초록잎을 모으는 게임 화면"></canvas>
+
+        <div class="overlay" id="startOverlay">
+          <h1>초록잎 럭키걸</h1>
+          <p>잎을 찾아다니며 행운을 모아요. 가끔 나오는 네잎클로버를 먹으면 럭키걸이 되어 짱 커져요.</p>
+          <button id="startButton" type="button">시작</button>
+        </div>
+
+        <div class="controls" aria-label="모바일 이동 버튼">
+          <button type="button" data-dir="up" aria-label="위로 이동">▲</button>
+          <div>
+            <button type="button" data-dir="left" aria-label="왼쪽 이동">◀</button>
+            <button type="button" data-dir="down" aria-label="아래로 이동">▼</button>
+            <button type="button" data-dir="right" aria-label="오른쪽 이동">▶</button>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="game.js"></script>
+  </body>
+</html>
