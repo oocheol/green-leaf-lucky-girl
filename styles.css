@@ -184,7 +184,7 @@ button {
 
 .controls button {
   display: grid;
-  width: 76px;
+  width: 72px;
   height: 54px;
   place-items: center;
   border: 2px solid rgba(255, 255, 255, 0.9);
@@ -195,6 +195,12 @@ button {
   font-weight: 900;
   box-shadow: 0 7px 14px rgba(41, 105, 71, 0.16);
   backdrop-filter: blur(7px);
+}
+
+.controls button[data-dir="jump"] {
+  width: 88px;
+  color: #7b5a00;
+  background: rgba(255, 240, 150, 0.78);
 }
 
 .controls button:active,
@@ -240,7 +246,11 @@ button {
   }
 
   .controls button {
-    width: 76px;
+    width: 66px;
     height: 52px;
+  }
+
+  .controls button[data-dir="jump"] {
+    width: 82px;
   }
 }

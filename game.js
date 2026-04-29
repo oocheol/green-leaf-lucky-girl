@@ -15,6 +15,9 @@ const CLOVER_CHANCE = 0.2;
 const LUCKY_DURATION = 7000;
 const GROUND_Y = WORLD_HEIGHT - 120;
 const WIND_DURATION = 5200;
+const SPEED_MULTIPLIER = 1.2;
+const GRAVITY = 1850;
+const JUMP_VELOCITY = -760;
 
 let dpr = 1;
 let scale = 1;
@@ -38,6 +41,7 @@ const player = {
   y: WORLD_HEIGHT / 2,
   vx: 0,
   vy: 0,
+  grounded: true,
   face: 1,
 };
 
@@ -73,13 +77,14 @@ function resetGame() {
   player.y = GROUND_Y;
   player.vx = 0;
   player.vy = 0;
+  player.grounded = true;
   for (let i = 0; i < 4; i += 1) spawnLeaf(-Math.random() * WORLD_HEIGHT * 0.55);
   updateHud(performance.now());
 }
 
 function spawnLeaf(y = -60) {
   const isClover = Math.random() < CLOVER_CHANCE;
-  const fallSpeed = 175 + Math.random() * 95 + Math.min(110, score * 1.4);
+  const fallSpeed = (175 + Math.random() * 95 + Math.min(110, score * 1.4)) * SPEED_MULTIPLIER;
   leaves.push({
     x: 70 + Math.random() * (WORLD_WIDTH - 140),
     y,
@@ -159,14 +164,21 @@ function update(dt, now) {
   if (spawnTimer <= 0) {
     spawnLeaf();
     const pace = Math.max(0.42, 1.06 - score * 0.006);
-    spawnTimer = pace + Math.random() * 0.3;
+    spawnTimer = (pace + Math.random() * 0.3) / SPEED_MULTIPLIER;
   }
 
-  const speed = isLucky(now) ? 610 : 440;
+  const speed = (isLucky(now) ? 610 : 440) * SPEED_MULTIPLIER;
   player.vx += (clamp(input.x, -1, 1) * speed - player.vx) * Math.min(1, dt * 11);
-  player.vy += (GROUND_Y - player.y) * Math.min(1, dt * 12);
+  player.vy += GRAVITY * dt;
   player.x = clamp(player.x + player.vx * dt, 48, WORLD_WIDTH - 48);
-  player.y = GROUND_Y;
+  player.y += player.vy * dt;
+  if (player.y >= GROUND_Y) {
+    player.y = GROUND_Y;
+    player.vy = 0;
+    player.grounded = true;
+  } else {
+    player.grounded = false;
+  }
   if (Math.abs(player.vx) > 10) player.face = Math.sign(player.vx);
 
   const playerRadius = isLucky(now) ? 68 : PLAYER_BASE_RADIUS;
@@ -347,6 +359,13 @@ function getBasketCatchY(now) {
   return player.y - 82 * getPlayerScale(now);
 }
 
+function jump() {
+  if (!running || !player.grounded) return;
+  player.vy = JUMP_VELOCITY * (isLucky(performance.now()) ? 1.08 : 1);
+  player.grounded = false;
+  burst(player.x, player.y + 28, "#bff7d4");
+}
+
 function drawBasket(x, y) {
   ctx.save();
   ctx.translate(x, y);
@@ -490,7 +509,13 @@ startButton.addEventListener("click", () => {
 });
 
 window.addEventListener("resize", resize);
-window.addEventListener("keydown", (event) => keyState.add(event.code));
+window.addEventListener("keydown", (event) => {
+  keyState.add(event.code);
+  if ((event.code === "Space" || event.code === "ArrowUp" || event.code === "KeyW") && !event.repeat) {
+    event.preventDefault();
+    jump();
+  }
+});
 window.addEventListener("keyup", (event) => keyState.delete(event.code));
 
 canvas.addEventListener("pointerdown", (event) => {
@@ -511,12 +536,17 @@ controlButtons.forEach((button) => {
   const dir = button.dataset.dir;
   const press = (event) => {
     event.preventDefault();
+    if (dir === "jump") {
+      jump();
+      button.classList.add("pressed");
+      return;
+    }
     keyState.add(dir);
     button.classList.add("pressed");
   };
   const release = (event) => {
     event.preventDefault();
-    keyState.delete(dir);
+    if (dir !== "jump") keyState.delete(dir);
     button.classList.remove("pressed");
   };
   button.addEventListener("pointerdown", press);
