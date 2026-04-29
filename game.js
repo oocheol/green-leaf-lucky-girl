@@ -20,6 +20,7 @@ const SPEED_MULTIPLIER = 1.2;
 const GRAVITY = 1850;
 const JUMP_VELOCITY = -760;
 const MAX_JUMPS = 2;
+const TRIPLE_JUMP_SCORE = 33;
 const FLY_SCORE = 333;
 const FORTUNE_SCORE = 777;
 const TOMATO_DANCE_DURATION = 4600;
@@ -149,6 +150,8 @@ function updateHud(now) {
     luckyStatusEl.textContent = "토마토 댄스";
   } else if (canFly()) {
     luckyStatusEl.textContent = "자유 비행";
+  } else if (canTripleJump()) {
+    luckyStatusEl.textContent = "3단 점프";
   } else if (lucky) {
     luckyStatusEl.textContent = `럭키걸 ${Math.ceil((luckyUntil - now) / 1000)}초`;
   } else if (isWindy(now)) {
@@ -171,6 +174,14 @@ function startWind(now) {
 
 function canFly() {
   return score >= FLY_SCORE;
+}
+
+function canTripleJump() {
+  return score >= TRIPLE_JUMP_SCORE;
+}
+
+function getMaxJumps() {
+  return canTripleJump() ? 3 : MAX_JUMPS;
 }
 
 function isFortuneRaining(now) {
@@ -459,7 +470,7 @@ function getBasketCatchY(now) {
 }
 
 function jump() {
-  if (!running || canFly() || player.jumpCount >= MAX_JUMPS) return;
+  if (!running || canFly() || player.jumpCount >= getMaxJumps()) return;
   player.vy = JUMP_VELOCITY * (isLucky(performance.now()) ? 1.08 : 1);
   player.grounded = false;
   player.jumpCount += 1;
