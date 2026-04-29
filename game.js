@@ -12,7 +12,7 @@ const WORLD_HEIGHT = 1400;
 const PLAYER_BASE_RADIUS = 34;
 const LEAF_RADIUS = 23;
 const CLOVER_CHANCE = 0.2;
-const TOMATO_CHANCE = 0.05;
+const TOMATO_CHANCE = 0.1;
 const LUCKY_DURATION = 7000;
 const GROUND_Y = WORLD_HEIGHT - 120;
 const WIND_DURATION = 5200;
@@ -24,6 +24,7 @@ const TRIPLE_JUMP_SCORE = 33;
 const FLY_SCORE = 333;
 const FORTUNE_SCORE = 777;
 const TOMATO_DANCE_DURATION = 4600;
+const GREEN_DANCE_DURATION = 5200;
 const FORTUNE_RAIN_DURATION = 7200;
 
 let dpr = 1;
@@ -31,6 +32,8 @@ let scale = 1;
 let lastTime = 0;
 let running = false;
 let score = 0;
+let greenLeafCount = 0;
+let nextGreenDanceAt = 100;
 let best = Number(localStorage.getItem("leafLuckyBest") || 0);
 let luckyUntil = 0;
 let floatTime = 0;
@@ -39,6 +42,7 @@ let windUntil = 0;
 let nextWindAt = 0;
 let windPower = 0;
 let tomatoDanceUntil = 0;
+let greenDanceUntil = 0;
 let fortuneRainUntil = 0;
 let flyAnnounced = false;
 let fortuneAnnounced = false;
@@ -80,12 +84,15 @@ function worldFromEvent(event) {
 function resetGame() {
   running = true;
   score = 0;
+  greenLeafCount = 0;
+  nextGreenDanceAt = 100;
   luckyUntil = 0;
   spawnTimer = 0;
   windUntil = 0;
   nextWindAt = performance.now() + 6000 + Math.random() * 6500;
   windPower = 0;
   tomatoDanceUntil = 0;
+  greenDanceUntil = 0;
   fortuneRainUntil = 0;
   flyAnnounced = false;
   fortuneAnnounced = false;
@@ -150,6 +157,8 @@ function updateHud(now) {
     luckyStatusEl.textContent = "행운 뿌리기";
   } else if (isTomatoDancing(now)) {
     luckyStatusEl.textContent = "토마토 댄스";
+  } else if (isGreenDancing(now)) {
+    luckyStatusEl.textContent = "초록짱짱 댄스";
   } else if (canFly()) {
     luckyStatusEl.textContent = "자유 비행";
   } else if (canTripleJump()) {
@@ -194,9 +203,17 @@ function isTomatoDancing(now) {
   return now < tomatoDanceUntil;
 }
 
+function isGreenDancing(now) {
+  return now < greenDanceUntil;
+}
+
+function isDanceTime(now) {
+  return isTomatoDancing(now) || isGreenDancing(now);
+}
+
 function update(dt, now) {
   floatTime += dt;
-  if (isTomatoDancing(now)) {
+  if (isDanceTime(now)) {
     player.vx *= 0.84;
     player.vy = 0;
     if (!canFly()) {
@@ -211,7 +228,8 @@ function update(dt, now) {
       piece.vy += 130 * dt;
     });
     confetti = confetti.filter((piece) => piece.life > 0);
-    spawnDanceSparkles(dt, now);
+    if (isTomatoDancing(now)) spawnDanceSparkles(dt, now);
+    if (isGreenDancing(now)) spawnGreenDanceSparkles(dt, now);
     updateHud(now);
     return;
   }
@@ -270,7 +288,7 @@ function update(dt, now) {
   }
   if (Math.abs(player.vx) > 10) player.face = Math.sign(player.vx);
 
-  let tomatoCaughtThisFrame = false;
+  let danceStartedThisFrame = false;
   const playerRadius = isLucky(now) ? 68 : PLAYER_BASE_RADIUS;
   leaves = leaves.filter((leaf) => {
     leaf.spin += dt * (leaf.clover ? 4.6 : 3.2);
@@ -290,9 +308,17 @@ function update(dt, now) {
       if (leaf.tomato) {
         score += 5;
         tomatoDanceUntil = now + TOMATO_DANCE_DURATION;
-        tomatoCaughtThisFrame = true;
+        danceStartedThisFrame = true;
       } else {
         score += leaf.clover ? 7 : 1;
+        if (!leaf.clover) {
+          greenLeafCount += 1;
+          if (greenLeafCount >= nextGreenDanceAt) {
+            greenDanceUntil = now + GREEN_DANCE_DURATION;
+            nextGreenDanceAt += 100;
+            danceStartedThisFrame = true;
+          }
+        }
       }
       if (leaf.clover) luckyUntil = now + LUCKY_DURATION;
       burst(leaf.x, leaf.y, leaf.tomato ? "#ff7662" : leaf.clover ? "#f6cf4f" : "#49bd72");
@@ -300,7 +326,7 @@ function update(dt, now) {
     }
     return leaf.y < WORLD_HEIGHT + 90;
   });
-  if (tomatoCaughtThisFrame) leaves = [];
+  if (danceStartedThisFrame) leaves = [];
 
   if (!flyAnnounced && score >= FLY_SCORE) {
     flyAnnounced = true;
@@ -339,6 +365,7 @@ function draw(now) {
   confetti.forEach(drawConfetti);
   drawPlayer(now);
   if (isTomatoDancing(now)) drawTomatoDance(now);
+  if (isGreenDancing(now)) drawGreenDance(now);
 }
 
 function drawMeadow() {
@@ -405,7 +432,7 @@ function drawCollectible(leaf) {
 function drawPlayer(now) {
   const lucky = isLucky(now);
   const s = getPlayerScale(now);
-  const dancing = isTomatoDancing(now);
+  const dancing = isDanceTime(now);
   const danceBeat = dancing ? Math.sin(floatTime * 18) : 0;
   const bounce = dancing
     ? Math.abs(Math.sin(floatTime * 16)) * -18
@@ -692,6 +719,54 @@ function drawTomatoDance(now) {
   ctx.restore();
 }
 
+function drawGreenDance(now) {
+  const life = Math.max(0, (greenDanceUntil - now) / GREEN_DANCE_DURATION);
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, life * 2.2);
+  drawPsychedelicLights();
+
+  ctx.fillStyle = "rgba(226, 255, 214, 0.9)";
+  roundedRect(56, 102, WORLD_WIDTH - 112, 116, 30);
+  ctx.fill();
+  ctx.fillStyle = "#18874d";
+  ctx.font = "900 38px 'Trebuchet MS', sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("초록짱짱 럭키걸 🍀", WORLD_WIDTH / 2, 146);
+  ctx.font = "900 28px 'Trebuchet MS', sans-serif";
+  ctx.fillText("네잎클로버 휘날리기!", WORLD_WIDTH / 2, 184);
+
+  ctx.fillStyle = "rgba(62, 210, 100, 0.16)";
+  ctx.beginPath();
+  ctx.ellipse(WORLD_WIDTH / 2, GROUND_Y - 62, 350 + Math.sin(floatTime * 14) * 24, 130, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  for (let i = 0; i < 26; i += 1) {
+    const orbit = 110 + (i % 5) * 46;
+    const angle = floatTime * (2.4 + (i % 4) * 0.28) + i * 0.7;
+    const x = WORLD_WIDTH / 2 + Math.cos(angle) * orbit + Math.sin(floatTime * 8 + i) * 18;
+    const y = GROUND_Y - 260 + Math.sin(angle * 1.2) * 190;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle + Math.sin(floatTime * 12 + i) * 0.7);
+    drawClover(0, 0, 18 + (i % 3) * 4);
+    ctx.restore();
+  }
+
+  ctx.strokeStyle = "rgba(255, 245, 110, 0.86)";
+  ctx.lineWidth = 8;
+  ctx.lineCap = "round";
+  for (let i = 0; i < 10; i += 1) {
+    const x = 55 + i * 88;
+    const y = 390 + Math.sin(floatTime * 13 + i) * 64;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.bezierCurveTo(x + 28, y - 92, x + 74, y + 72, x + 112, y - 22);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawPsychedelicLights() {
   ctx.save();
   const colors = [
@@ -728,6 +803,34 @@ function drawPsychedelicLights() {
     ctx.fill();
   }
   ctx.restore();
+}
+
+function spawnGreenDanceSparkles(dt, now) {
+  const count = Math.ceil(34 * dt);
+  for (let i = 0; i < count; i += 1) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 60 + Math.random() * 220;
+    confetti.push({
+      x: WORLD_WIDTH / 2 + Math.cos(angle + floatTime * 4) * radius,
+      y: GROUND_Y - 230 + Math.sin(angle + floatTime * 5) * (70 + Math.random() * 160),
+      vx: Math.cos(angle) * (120 + Math.random() * 230),
+      vy: Math.sin(angle) * (120 + Math.random() * 180) - 150,
+      life: 0.65 + Math.random() * 0.8,
+      color: Math.random() < 0.55 ? "#42d66f" : "#f7d75b",
+      size: 6 + Math.random() * 10,
+    });
+  }
+  if (Math.floor(now / 90) % 2 === 0) {
+    confetti.push({
+      x: WORLD_WIDTH / 2 + Math.sin(floatTime * 18) * 260,
+      y: GROUND_Y - 280 + Math.cos(floatTime * 15) * 150,
+      vx: -120 + Math.random() * 240,
+      vy: -230 - Math.random() * 120,
+      life: 0.72,
+      color: "#5ee088",
+      size: 14,
+    });
+  }
 }
 
 function spawnDanceSparkles(dt, now) {
