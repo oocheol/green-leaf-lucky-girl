@@ -12,12 +12,18 @@ const WORLD_HEIGHT = 1400;
 const PLAYER_BASE_RADIUS = 34;
 const LEAF_RADIUS = 23;
 const CLOVER_CHANCE = 0.2;
+const TOMATO_CHANCE = 0.05;
 const LUCKY_DURATION = 7000;
 const GROUND_Y = WORLD_HEIGHT - 120;
 const WIND_DURATION = 5200;
 const SPEED_MULTIPLIER = 1.2;
 const GRAVITY = 1850;
 const JUMP_VELOCITY = -760;
+const MAX_JUMPS = 2;
+const FLY_SCORE = 333;
+const FORTUNE_SCORE = 777;
+const TOMATO_DANCE_DURATION = 4600;
+const FORTUNE_RAIN_DURATION = 7200;
 
 let dpr = 1;
 let scale = 1;
@@ -31,6 +37,10 @@ let spawnTimer = 0;
 let windUntil = 0;
 let nextWindAt = 0;
 let windPower = 0;
+let tomatoDanceUntil = 0;
+let fortuneRainUntil = 0;
+let flyAnnounced = false;
+let fortuneAnnounced = false;
 let confetti = [];
 let leaves = [];
 let keyState = new Set();
@@ -42,6 +52,7 @@ const player = {
   vx: 0,
   vy: 0,
   grounded: true,
+  jumpCount: 0,
   face: 1,
 };
 
@@ -71,6 +82,10 @@ function resetGame() {
   windUntil = 0;
   nextWindAt = performance.now() + 6000 + Math.random() * 6500;
   windPower = 0;
+  tomatoDanceUntil = 0;
+  fortuneRainUntil = 0;
+  flyAnnounced = false;
+  fortuneAnnounced = false;
   confetti = [];
   leaves = [];
   player.x = WORLD_WIDTH / 2;
@@ -78,18 +93,22 @@ function resetGame() {
   player.vx = 0;
   player.vy = 0;
   player.grounded = true;
+  player.jumpCount = 0;
   for (let i = 0; i < 4; i += 1) spawnLeaf(-Math.random() * WORLD_HEIGHT * 0.55);
   updateHud(performance.now());
 }
 
 function spawnLeaf(y = -60) {
-  const isClover = Math.random() < CLOVER_CHANCE;
+  const roll = Math.random();
+  const type = roll < TOMATO_CHANCE ? "tomato" : roll < TOMATO_CHANCE + CLOVER_CHANCE ? "clover" : "leaf";
   const fallSpeed = (175 + Math.random() * 95 + Math.min(110, score * 1.4)) * SPEED_MULTIPLIER;
   leaves.push({
     x: 70 + Math.random() * (WORLD_WIDTH - 140),
     y,
-    r: isClover ? 28 : LEAF_RADIUS,
-    clover: isClover,
+    r: type === "tomato" ? 31 : type === "clover" ? 28 : LEAF_RADIUS,
+    type,
+    clover: type === "clover",
+    tomato: type === "tomato",
     fallSpeed,
     drift: -34 + Math.random() * 68,
     sway: 36 + Math.random() * 44,
@@ -124,7 +143,13 @@ function updateHud(now) {
   const lucky = isLucky(now);
   luckyStatusEl.classList.toggle("lucky", lucky);
   luckyStatusEl.classList.toggle("windy", isWindy(now));
-  if (lucky) {
+  if (isFortuneRaining(now)) {
+    luckyStatusEl.textContent = "행운 뿌리기";
+  } else if (now < tomatoDanceUntil) {
+    luckyStatusEl.textContent = "토마토 댄스";
+  } else if (canFly()) {
+    luckyStatusEl.textContent = "자유 비행";
+  } else if (lucky) {
     luckyStatusEl.textContent = `럭키걸 ${Math.ceil((luckyUntil - now) / 1000)}초`;
   } else if (isWindy(now)) {
     luckyStatusEl.textContent = "강풍 조심";
@@ -144,16 +169,33 @@ function startWind(now) {
   burst(WORLD_WIDTH / 2, 170, "#d8fbff");
 }
 
+function canFly() {
+  return score >= FLY_SCORE;
+}
+
+function isFortuneRaining(now) {
+  return now < fortuneRainUntil;
+}
+
 function update(dt, now) {
   floatTime += dt;
   const input = { x: 0, y: 0 };
 
   if (keyState.has("ArrowLeft") || keyState.has("KeyA") || keyState.has("left")) input.x -= 1;
   if (keyState.has("ArrowRight") || keyState.has("KeyD") || keyState.has("right")) input.x += 1;
+  if (keyState.has("ArrowUp") || keyState.has("KeyW") || keyState.has("up")) input.y -= 1;
+  if (keyState.has("ArrowDown") || keyState.has("KeyS") || keyState.has("down")) input.y += 1;
 
   if (pointerTarget) {
     const dx = pointerTarget.x - player.x;
-    if (Math.abs(dx) > 10) {
+    const dy = pointerTarget.y - player.y;
+    if (canFly()) {
+      const dist = Math.hypot(dx, dy);
+      if (dist > 12) {
+        input.x += dx / dist;
+        input.y += dy / dist;
+      }
+    } else if (Math.abs(dx) > 10) {
       input.x += Math.sign(dx);
     }
   }
@@ -167,15 +209,25 @@ function update(dt, now) {
     spawnTimer = (pace + Math.random() * 0.3) / SPEED_MULTIPLIER;
   }
 
-  const speed = (isLucky(now) ? 610 : 440) * SPEED_MULTIPLIER;
-  player.vx += (clamp(input.x, -1, 1) * speed - player.vx) * Math.min(1, dt * 11);
-  player.vy += GRAVITY * dt;
+  const speed = (canFly() ? 520 : isLucky(now) ? 610 : 440) * SPEED_MULTIPLIER;
+  const inputLength = Math.hypot(input.x, input.y) || 1;
+  player.vx += (clamp(input.x / inputLength, -1, 1) * speed - player.vx) * Math.min(1, dt * 11);
+  if (canFly()) {
+    player.vy += (clamp(input.y / inputLength, -1, 1) * speed - player.vy) * Math.min(1, dt * 11);
+  } else {
+    player.vy += GRAVITY * dt;
+  }
   player.x = clamp(player.x + player.vx * dt, 48, WORLD_WIDTH - 48);
   player.y += player.vy * dt;
-  if (player.y >= GROUND_Y) {
+  if (canFly()) {
+    player.y = clamp(player.y, 190, GROUND_Y);
+    player.grounded = false;
+    player.jumpCount = 0;
+  } else if (player.y >= GROUND_Y) {
     player.y = GROUND_Y;
     player.vy = 0;
     player.grounded = true;
+    player.jumpCount = 0;
   } else {
     player.grounded = false;
   }
@@ -197,13 +249,28 @@ function update(dt, now) {
     const catchHeight = isLucky(now) ? 70 : 42;
     const caught = Math.abs(player.x - leaf.x) < catchWidth && Math.abs(catchY - leaf.y) < catchHeight;
     if (caught) {
-      score += leaf.clover ? 7 : 1;
+      if (leaf.tomato) {
+        score += 5;
+        tomatoDanceUntil = now + TOMATO_DANCE_DURATION;
+      } else {
+        score += leaf.clover ? 7 : 1;
+      }
       if (leaf.clover) luckyUntil = now + LUCKY_DURATION;
-      burst(leaf.x, leaf.y, leaf.clover ? "#f6cf4f" : "#49bd72");
+      burst(leaf.x, leaf.y, leaf.tomato ? "#ff7662" : leaf.clover ? "#f6cf4f" : "#49bd72");
       return false;
     }
     return leaf.y < WORLD_HEIGHT + 90;
   });
+
+  if (!flyAnnounced && score >= FLY_SCORE) {
+    flyAnnounced = true;
+    burst(player.x, player.y - 120, "#bde9ff");
+  }
+  if (!fortuneAnnounced && score >= FORTUNE_SCORE) {
+    fortuneAnnounced = true;
+    fortuneRainUntil = now + FORTUNE_RAIN_DURATION;
+    burst(player.x, player.y - 160, "#f7d75b");
+  }
 
   if (score > best) {
     best = score;
@@ -217,6 +284,7 @@ function update(dt, now) {
     piece.vy += 220 * dt;
   });
   confetti = confetti.filter((piece) => piece.life > 0);
+  if (isFortuneRaining(now)) spawnFortuneSparkles(dt, now);
 
   updateHud(now);
 }
@@ -230,6 +298,7 @@ function draw(now) {
   leaves.forEach(drawCollectible);
   confetti.forEach(drawConfetti);
   drawPlayer(now);
+  if (now < tomatoDanceUntil) drawTomatoDance(now);
 }
 
 function drawMeadow() {
@@ -283,7 +352,9 @@ function drawCollectible(leaf) {
   ctx.save();
   ctx.translate(leaf.x, leaf.y);
   ctx.rotate(leaf.spin + Math.sin(floatTime * 8 + leaf.bob) * (isWindy(performance.now()) ? 0.45 : 0.16));
-  if (leaf.clover) {
+  if (leaf.tomato) {
+    drawTomato(0, 0, leaf.r, floatTime + leaf.bob);
+  } else if (leaf.clover) {
     drawClover(0, 0, leaf.r);
   } else {
     drawLeaf(0, 0, leaf.r, "#35ad61", "#247e49");
@@ -305,13 +376,40 @@ function drawPlayer(now) {
   ctx.ellipse(0, 34, 52, 14, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = "#5ecb7b";
+  ctx.fillStyle = "#f7f8ff";
   roundedRect(-28, -22, 56, 62, 22);
   ctx.fill();
+  ctx.strokeStyle = "#d8def5";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-20, 0);
+  ctx.quadraticCurveTo(0, 12, 20, 0);
+  ctx.stroke();
+
+  ctx.fillStyle = "#1e2528";
+  ctx.beginPath();
+  ctx.ellipse(-27, -40, 15, 39, -0.12, 0, Math.PI * 2);
+  ctx.ellipse(27, -40, 15, 39, 0.12, 0, Math.PI * 2);
+  ctx.ellipse(0, -53, 33, 34, 0, 0, Math.PI * 2);
+  ctx.fill();
+
   ctx.fillStyle = "#fbe0be";
   ctx.beginPath();
   ctx.arc(0, -40, 28, 0, Math.PI * 2);
   ctx.fill();
+
+  ctx.fillStyle = "#1e2528";
+  ctx.beginPath();
+  ctx.ellipse(0, -66, 30, 19, 0, Math.PI, Math.PI * 2);
+  ctx.fill();
+  for (let i = -18; i <= 18; i += 6) {
+    ctx.beginPath();
+    ctx.moveTo(i, -68);
+    ctx.quadraticCurveTo(i + 3, -55, i - 1, -43);
+    ctx.strokeStyle = "#101719";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 
   ctx.fillStyle = "#427352";
   ctx.beginPath();
@@ -324,19 +422,20 @@ function drawPlayer(now) {
   ctx.arc(1, -34, 9, 0.15, Math.PI - 0.15);
   ctx.stroke();
 
-  ctx.fillStyle = "#2e9e58";
+  ctx.strokeStyle = "#2a2020";
+  ctx.lineWidth = 4;
   ctx.beginPath();
-  ctx.ellipse(-16, -66, 17, 24, -0.5, 0, Math.PI * 2);
-  ctx.ellipse(14, -66, 17, 24, 0.5, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "#1f7440";
+  ctx.moveTo(-13, -28);
+  ctx.quadraticCurveTo(0, -23, 13, -28);
+  ctx.stroke();
   ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.moveTo(0, -58);
-  ctx.quadraticCurveTo(7, -83, 24, -92);
+  ctx.moveTo(-7, -23);
+  ctx.quadraticCurveTo(0, -18, 7, -23);
   ctx.stroke();
 
-  drawBasket(0, -82);
+  drawCheekFlower(-20, -36);
+  drawBasket(0, -82, now);
 
   if (lucky) {
     ctx.fillStyle = "#f7d75b";
@@ -360,15 +459,20 @@ function getBasketCatchY(now) {
 }
 
 function jump() {
-  if (!running || !player.grounded) return;
+  if (!running || canFly() || player.jumpCount >= MAX_JUMPS) return;
   player.vy = JUMP_VELOCITY * (isLucky(performance.now()) ? 1.08 : 1);
   player.grounded = false;
+  player.jumpCount += 1;
   burst(player.x, player.y + 28, "#bff7d4");
 }
 
-function drawBasket(x, y) {
+function drawBasket(x, y, now = performance.now()) {
   ctx.save();
   ctx.translate(x, y);
+  if (isFortuneRaining(now)) {
+    ctx.rotate(floatTime * 8);
+    ctx.translate(0, -8 + Math.sin(floatTime * 10) * 4);
+  }
   ctx.lineCap = "round";
 
   ctx.strokeStyle = "#9b6a32";
@@ -408,6 +512,115 @@ function drawBasket(x, y) {
   }
 
   ctx.restore();
+}
+
+function drawCheekFlower(x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = "#f6f0d3";
+  ctx.strokeStyle = "#d7c7ef";
+  ctx.lineWidth = 1.4;
+  for (let i = 0; i < 5; i += 1) {
+    ctx.save();
+    ctx.rotate(i * Math.PI * 0.4);
+    ctx.beginPath();
+    ctx.ellipse(0, -5, 3.2, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.fillStyle = "#ffe175";
+  ctx.beginPath();
+  ctx.arc(0, 0, 2.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawTomato(x, y, r, dance = 0) {
+  ctx.save();
+  ctx.translate(x, y + Math.sin(dance * 8) * 3);
+  ctx.fillStyle = "#f25f4c";
+  ctx.strokeStyle = "#361717";
+  ctx.lineWidth = Math.max(3, r * 0.1);
+  ctx.beginPath();
+  ctx.arc(0, 4, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#fff3c4";
+  ctx.beginPath();
+  ctx.arc(-r * 0.45, -r * 0.4, r * 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#62bd67";
+  for (let i = 0; i < 5; i += 1) {
+    ctx.save();
+    ctx.rotate((i * Math.PI * 2) / 5);
+    ctx.beginPath();
+    ctx.ellipse(0, -r * 0.92, r * 0.2, r * 0.38, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.fillStyle = "#0f0f0f";
+  ctx.beginPath();
+  ctx.arc(-r * 0.32, -r * 0.05, r * 0.14, 0, Math.PI * 2);
+  ctx.arc(r * 0.32, -r * 0.05, r * 0.14, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#0f0f0f";
+  ctx.lineWidth = Math.max(2, r * 0.07);
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.12, r * 0.22);
+  ctx.quadraticCurveTo(0, r * 0.42, r * 0.12, r * 0.22);
+  ctx.stroke();
+  ctx.strokeStyle = "#ffd96a";
+  ctx.lineWidth = 4;
+  for (let i = 0; i < 2; i += 1) {
+    const sx = i === 0 ? -r * 1.2 : r * 1.2;
+    ctx.beginPath();
+    ctx.moveTo(sx, -r * 0.9);
+    ctx.quadraticCurveTo(sx + Math.sin(dance * 10 + i) * 18, -r * 1.35, sx + 8, -r * 1.7);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawTomatoDance(now) {
+  const life = Math.max(0, (tomatoDanceUntil - now) / TOMATO_DANCE_DURATION);
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, life * 2.2);
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  roundedRect(82, 118, WORLD_WIDTH - 164, 86, 28);
+  ctx.fill();
+  ctx.fillStyle = "#b83b2e";
+  ctx.font = "900 34px 'Trebuchet MS', sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("토마토 될거야~! 쥬스 될거야~!", WORLD_WIDTH / 2, 160);
+  for (let i = 0; i < 3; i += 1) {
+    const x = WORLD_WIDTH / 2 + (i - 1) * 116;
+    const y = 275 + Math.sin(floatTime * 9 + i) * 18;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.sin(floatTime * 7 + i) * 0.28);
+    drawTomato(0, 0, 38, floatTime + i);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function spawnFortuneSparkles(dt, now) {
+  const count = Math.ceil(18 * dt);
+  for (let i = 0; i < count; i += 1) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 42 + Math.random() * 56;
+    confetti.push({
+      x: player.x + Math.cos(angle + floatTime * 8) * radius,
+      y: getBasketCatchY(now) + Math.sin(angle + floatTime * 8) * radius,
+      vx: Math.cos(angle) * (80 + Math.random() * 160),
+      vy: -80 - Math.random() * 170,
+      life: 0.7 + Math.random() * 0.6,
+      color: Math.random() < 0.5 ? "#f7d75b" : "#5ee088",
+      size: 5 + Math.random() * 7,
+    });
+  }
 }
 
 function drawCloud(x, y, s) {
@@ -537,6 +750,11 @@ controlButtons.forEach((button) => {
   const press = (event) => {
     event.preventDefault();
     if (dir === "jump") {
+      jump();
+      button.classList.add("pressed");
+      return;
+    }
+    if (dir === "up" && !canFly()) {
       jump();
       button.classList.add("pressed");
       return;

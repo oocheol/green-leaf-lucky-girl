@@ -173,7 +173,7 @@ button {
   bottom: 18px;
   transform: translateX(-50%);
   display: grid;
-  gap: 7px;
+  gap: 5px;
   justify-items: center;
 }
 
@@ -184,8 +184,8 @@ button {
 
 .controls button {
   display: grid;
-  width: 72px;
-  height: 54px;
+  width: 62px;
+  height: 48px;
   place-items: center;
   border: 2px solid rgba(255, 255, 255, 0.9);
   border-radius: 999px;
@@ -198,7 +198,7 @@ button {
 }
 
 .controls button[data-dir="jump"] {
-  width: 88px;
+  width: 82px;
   color: #7b5a00;
   background: rgba(255, 240, 150, 0.78);
 }
@@ -246,11 +246,11 @@ button {
   }
 
   .controls button {
-    width: 66px;
-    height: 52px;
+    width: 58px;
+    height: 46px;
   }
 
   .controls button[data-dir="jump"] {
-    width: 82px;
+    width: 78px;
   }
 }
