@@ -13,6 +13,8 @@ const PLAYER_BASE_RADIUS = 34;
 const LEAF_RADIUS = 23;
 const CLOVER_CHANCE = 0.2;
 const LUCKY_DURATION = 7000;
+const GROUND_Y = WORLD_HEIGHT - 120;
+const WIND_DURATION = 5200;
 
 let dpr = 1;
 let scale = 1;
@@ -22,6 +24,10 @@ let score = 0;
 let best = Number(localStorage.getItem("leafLuckyBest") || 0);
 let luckyUntil = 0;
 let floatTime = 0;
+let spawnTimer = 0;
+let windUntil = 0;
+let nextWindAt = 0;
+let windPower = 0;
 let confetti = [];
 let leaves = [];
 let keyState = new Set();
@@ -57,23 +63,31 @@ function resetGame() {
   running = true;
   score = 0;
   luckyUntil = 0;
+  spawnTimer = 0;
+  windUntil = 0;
+  nextWindAt = performance.now() + 6000 + Math.random() * 6500;
+  windPower = 0;
   confetti = [];
   leaves = [];
   player.x = WORLD_WIDTH / 2;
-  player.y = WORLD_HEIGHT / 2;
+  player.y = GROUND_Y;
   player.vx = 0;
   player.vy = 0;
-  for (let i = 0; i < 9; i += 1) spawnLeaf();
+  for (let i = 0; i < 4; i += 1) spawnLeaf(-Math.random() * WORLD_HEIGHT * 0.55);
   updateHud(performance.now());
 }
 
-function spawnLeaf() {
+function spawnLeaf(y = -60) {
   const isClover = Math.random() < CLOVER_CHANCE;
+  const fallSpeed = 175 + Math.random() * 95 + Math.min(110, score * 1.4);
   leaves.push({
     x: 70 + Math.random() * (WORLD_WIDTH - 140),
-    y: 135 + Math.random() * (WORLD_HEIGHT - 230),
+    y,
     r: isClover ? 28 : LEAF_RADIUS,
     clover: isClover,
+    fallSpeed,
+    drift: -34 + Math.random() * 68,
+    sway: 36 + Math.random() * 44,
     spin: Math.random() * Math.PI * 2,
     bob: Math.random() * Math.PI * 2,
   });
@@ -104,7 +118,25 @@ function updateHud(now) {
   bestEl.textContent = best;
   const lucky = isLucky(now);
   luckyStatusEl.classList.toggle("lucky", lucky);
-  luckyStatusEl.textContent = lucky ? `럭키걸 ${Math.ceil((luckyUntil - now) / 1000)}초` : "평범한 잎 사냥꾼";
+  luckyStatusEl.classList.toggle("windy", isWindy(now));
+  if (lucky) {
+    luckyStatusEl.textContent = `럭키걸 ${Math.ceil((luckyUntil - now) / 1000)}초`;
+  } else if (isWindy(now)) {
+    luckyStatusEl.textContent = "강풍 조심";
+  } else {
+    luckyStatusEl.textContent = "받을 준비";
+  }
+}
+
+function isWindy(now) {
+  return now < windUntil;
+}
+
+function startWind(now) {
+  windUntil = now + WIND_DURATION;
+  windPower = (Math.random() < 0.5 ? -1 : 1) * (185 + Math.random() * 115);
+  nextWindAt = now + WIND_DURATION + 7500 + Math.random() * 9000;
+  burst(WORLD_WIDTH / 2, 170, "#d8fbff");
 }
 
 function update(dt, now) {
@@ -113,39 +145,52 @@ function update(dt, now) {
 
   if (keyState.has("ArrowLeft") || keyState.has("KeyA") || keyState.has("left")) input.x -= 1;
   if (keyState.has("ArrowRight") || keyState.has("KeyD") || keyState.has("right")) input.x += 1;
-  if (keyState.has("ArrowUp") || keyState.has("KeyW") || keyState.has("up")) input.y -= 1;
-  if (keyState.has("ArrowDown") || keyState.has("KeyS") || keyState.has("down")) input.y += 1;
 
   if (pointerTarget) {
     const dx = pointerTarget.x - player.x;
-    const dy = pointerTarget.y - player.y;
-    const dist = Math.hypot(dx, dy);
-    if (dist > 12) {
-      input.x += dx / dist;
-      input.y += dy / dist;
+    if (Math.abs(dx) > 10) {
+      input.x += Math.sign(dx);
     }
   }
 
-  const len = Math.hypot(input.x, input.y) || 1;
-  const speed = isLucky(now) ? 405 : 285;
-  player.vx += ((input.x / len) * speed - player.vx) * Math.min(1, dt * 9);
-  player.vy += ((input.y / len) * speed - player.vy) * Math.min(1, dt * 9);
+  if (now >= nextWindAt) startWind(now);
+
+  spawnTimer -= dt;
+  if (spawnTimer <= 0) {
+    spawnLeaf();
+    const pace = Math.max(0.42, 1.06 - score * 0.006);
+    spawnTimer = pace + Math.random() * 0.3;
+  }
+
+  const speed = isLucky(now) ? 610 : 440;
+  player.vx += (clamp(input.x, -1, 1) * speed - player.vx) * Math.min(1, dt * 11);
+  player.vy += (GROUND_Y - player.y) * Math.min(1, dt * 12);
   player.x = clamp(player.x + player.vx * dt, 48, WORLD_WIDTH - 48);
-  player.y = clamp(player.y + player.vy * dt, 118, WORLD_HEIGHT - 58);
+  player.y = GROUND_Y;
   if (Math.abs(player.vx) > 10) player.face = Math.sign(player.vx);
 
   const playerRadius = isLucky(now) ? 68 : PLAYER_BASE_RADIUS;
   leaves = leaves.filter((leaf) => {
-    leaf.spin += dt * (leaf.clover ? 2.1 : 1.2);
-    const dist = Math.hypot(player.x - leaf.x, player.y - leaf.y);
-    if (dist < playerRadius + leaf.r * 0.8) {
+    leaf.spin += dt * (leaf.clover ? 4.6 : 3.2);
+    const windPush = isWindy(now) ? windPower + Math.sin(floatTime * 12 + leaf.bob) * 165 : 0;
+    leaf.x += (leaf.drift + windPush + Math.sin(floatTime * 3.4 + leaf.bob) * leaf.sway) * dt;
+    leaf.y += leaf.fallSpeed * dt;
+    if (leaf.x < 38 || leaf.x > WORLD_WIDTH - 38) {
+      leaf.x = clamp(leaf.x, 38, WORLD_WIDTH - 38);
+      leaf.drift *= -0.78;
+    }
+
+    const catchY = getBasketCatchY(now);
+    const catchWidth = isLucky(now) ? 178 : 98;
+    const catchHeight = isLucky(now) ? 70 : 42;
+    const caught = Math.abs(player.x - leaf.x) < catchWidth && Math.abs(catchY - leaf.y) < catchHeight;
+    if (caught) {
       score += leaf.clover ? 7 : 1;
       if (leaf.clover) luckyUntil = now + LUCKY_DURATION;
       burst(leaf.x, leaf.y, leaf.clover ? "#f6cf4f" : "#49bd72");
-      spawnLeaf();
       return false;
     }
-    return true;
+    return leaf.y < WORLD_HEIGHT + 90;
   });
 
   if (score > best) {
@@ -177,14 +222,21 @@ function draw(now) {
 
 function drawMeadow() {
   const grd = ctx.createLinearGradient(0, 0, 0, WORLD_HEIGHT);
-  grd.addColorStop(0, "#c9f5cb");
-  grd.addColorStop(0.58, "#9fe1ad");
+  grd.addColorStop(0, "#bfeeff");
+  grd.addColorStop(0.36, "#d8f8cc");
+  grd.addColorStop(0.72, "#9fe1ad");
   grd.addColorStop(1, "#f4d47a");
   ctx.fillStyle = grd;
   ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
+  ctx.fillStyle = "rgba(255,255,255,0.62)";
+  for (let i = 0; i < 7; i += 1) {
+    const x = ((i * 170 + floatTime * 18) % (WORLD_WIDTH + 220)) - 110;
+    drawCloud(x, 120 + (i % 3) * 74, 0.74 + (i % 2) * 0.22);
+  }
+
   ctx.globalAlpha = 0.4;
-  for (let y = 150; y < WORLD_HEIGHT; y += 140) {
+  for (let y = 270; y < WORLD_HEIGHT; y += 140) {
     for (let x = 30; x < WORLD_WIDTH; x += 110) {
       drawTinyLeaf(x + Math.sin(y) * 14, y, 0.8, "#69bd78");
     }
@@ -194,12 +246,31 @@ function drawMeadow() {
   ctx.fillStyle = "rgba(255,255,255,0.45)";
   roundedRect(28, 96, WORLD_WIDTH - 56, WORLD_HEIGHT - 128, 38);
   ctx.fill();
+
+  ctx.fillStyle = "rgba(64, 151, 84, 0.35)";
+  ctx.fillRect(28, GROUND_Y + 36, WORLD_WIDTH - 56, 96);
+
+  if (isWindy(performance.now())) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.8)";
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    for (let i = 0; i < 8; i += 1) {
+      const y = 230 + i * 105;
+      const offset = ((floatTime * 260 + i * 90) % (WORLD_WIDTH + 240)) - 120;
+      ctx.beginPath();
+      ctx.moveTo(offset, y);
+      ctx.bezierCurveTo(offset + 80, y - 26, offset + 180, y + 26, offset + 270, y - 10);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 }
 
 function drawCollectible(leaf) {
   ctx.save();
-  ctx.translate(leaf.x, leaf.y + Math.sin(floatTime * 4 + leaf.bob) * 7);
-  ctx.rotate(Math.sin(leaf.spin) * 0.18);
+  ctx.translate(leaf.x, leaf.y);
+  ctx.rotate(leaf.spin + Math.sin(floatTime * 8 + leaf.bob) * (isWindy(performance.now()) ? 0.45 : 0.16));
   if (leaf.clover) {
     drawClover(0, 0, leaf.r);
   } else {
@@ -210,7 +281,7 @@ function drawCollectible(leaf) {
 
 function drawPlayer(now) {
   const lucky = isLucky(now);
-  const s = lucky ? 1.85 : 1;
+  const s = getPlayerScale(now);
   const bounce = Math.sin(floatTime * 9) * (Math.abs(player.vx) + Math.abs(player.vy) > 20 ? 3 : 1);
 
   ctx.save();
@@ -253,6 +324,8 @@ function drawPlayer(now) {
   ctx.quadraticCurveTo(7, -83, 24, -92);
   ctx.stroke();
 
+  drawBasket(0, -82);
+
   if (lucky) {
     ctx.fillStyle = "#f7d75b";
     for (let i = 0; i < 8; i += 1) {
@@ -263,6 +336,71 @@ function drawPlayer(now) {
     }
   }
 
+  ctx.restore();
+}
+
+function getPlayerScale(now) {
+  return isLucky(now) ? 1.85 : 1;
+}
+
+function getBasketCatchY(now) {
+  return player.y - 82 * getPlayerScale(now);
+}
+
+function drawBasket(x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.lineCap = "round";
+
+  ctx.strokeStyle = "#9b6a32";
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(0, 4, 40, Math.PI * 1.08, Math.PI * 1.92);
+  ctx.stroke();
+
+  ctx.fillStyle = "#d99b46";
+  ctx.strokeStyle = "#83532a";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(-48, -2);
+  ctx.lineTo(48, -2);
+  ctx.lineTo(34, 28);
+  ctx.quadraticCurveTo(0, 38, -34, 28);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.strokeStyle = "rgba(255,255,255,0.45)";
+  ctx.lineWidth = 3;
+  for (let i = -28; i <= 28; i += 14) {
+    ctx.beginPath();
+    ctx.moveTo(i - 6, 2);
+    ctx.lineTo(i + 3, 27);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = "#8f5d2e";
+  ctx.lineWidth = 4;
+  for (let yLine = 9; yLine <= 23; yLine += 14) {
+    ctx.beginPath();
+    ctx.moveTo(-40, yLine);
+    ctx.quadraticCurveTo(0, yLine + 7, 40, yLine);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawCloud(x, y, s) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  ctx.beginPath();
+  ctx.arc(0, 10, 30, 0, Math.PI * 2);
+  ctx.arc(34, -4, 42, 0, Math.PI * 2);
+  ctx.arc(78, 10, 31, 0, Math.PI * 2);
+  ctx.arc(38, 22, 48, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 }
 
