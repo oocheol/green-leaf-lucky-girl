@@ -46,6 +46,8 @@ let confetti = [];
 let leaves = [];
 let keyState = new Set();
 let pointerTarget = null;
+let pointerStart = null;
+let pointerMoved = false;
 
 const player = {
   x: WORLD_WIDTH / 2,
@@ -410,7 +412,9 @@ function drawPlayer(now) {
     : Math.sin(floatTime * 9) * (Math.abs(player.vx) + Math.abs(player.vy) > 20 ? 3 : 1);
 
   ctx.save();
-  ctx.translate(player.x + danceBeat * 34, player.y + bounce);
+  const drawX = dancing ? WORLD_WIDTH / 2 : player.x;
+  const drawY = dancing ? GROUND_Y - 4 : player.y;
+  ctx.translate(drawX + danceBeat * 44, drawY + bounce);
   if (dancing) ctx.rotate(Math.sin(floatTime * 14) * 0.22);
   ctx.scale(s * player.face * (dancing ? 1 + Math.abs(danceBeat) * 0.1 : 1), s * (dancing ? 1 - Math.abs(danceBeat) * 0.05 : 1));
 
@@ -629,6 +633,8 @@ function drawTomatoDance(now) {
   const life = Math.max(0, (tomatoDanceUntil - now) / TOMATO_DANCE_DURATION);
   ctx.save();
   ctx.globalAlpha = Math.min(1, life * 2.2);
+  drawPsychedelicLights();
+
   ctx.fillStyle = "rgba(255, 251, 218, 0.9)";
   roundedRect(62, 106, WORLD_WIDTH - 124, 104, 30);
   ctx.fill();
@@ -654,11 +660,19 @@ function drawTomatoDance(now) {
   }
 
   ctx.save();
-  const partnerX = clamp(player.x + 145 + Math.sin(floatTime * 15) * 42, 130, WORLD_WIDTH - 120);
-  const partnerY = player.y - 64 + Math.abs(Math.sin(floatTime * 18)) * -32;
+  const partnerX = WORLD_WIDTH / 2 + 185 + Math.sin(floatTime * 15) * 78;
+  const partnerY = GROUND_Y - 145 + Math.cos(floatTime * 18) * 80;
   ctx.translate(partnerX, partnerY);
   ctx.rotate(Math.sin(floatTime * 20) * 0.5);
   drawTomato(0, 0, 58 + Math.sin(floatTime * 16) * 7, floatTime * 2.3);
+  ctx.restore();
+
+  ctx.save();
+  const partnerX2 = WORLD_WIDTH / 2 - 205 + Math.cos(floatTime * 17) * 86;
+  const partnerY2 = GROUND_Y - 190 + Math.sin(floatTime * 19) * 92;
+  ctx.translate(partnerX2, partnerY2);
+  ctx.rotate(Math.cos(floatTime * 21) * 0.6);
+  drawTomato(0, 0, 48 + Math.cos(floatTime * 15) * 6, floatTime * 2.5);
   ctx.restore();
 
   ctx.strokeStyle = "#f7c84b";
@@ -674,6 +688,44 @@ function drawTomatoDance(now) {
     ctx.beginPath();
     ctx.arc(x + 49, y + 4, 8, 0, Math.PI * 2);
     ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawPsychedelicLights() {
+  ctx.save();
+  const colors = [
+    "rgba(255, 68, 86, 0.28)",
+    "rgba(255, 223, 84, 0.26)",
+    "rgba(78, 220, 255, 0.24)",
+    "rgba(160, 99, 255, 0.22)",
+  ];
+  for (let i = 0; i < 8; i += 1) {
+    const side = i % 2 === 0 ? -80 : WORLD_WIDTH + 80;
+    const targetX = WORLD_WIDTH / 2 + Math.sin(floatTime * 5 + i) * 220;
+    const targetY = GROUND_Y - 180 + Math.cos(floatTime * 7 + i) * 190;
+    const beam = ctx.createLinearGradient(side, 70 + i * 38, targetX, targetY);
+    beam.addColorStop(0, colors[i % colors.length]);
+    beam.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = beam;
+    ctx.beginPath();
+    ctx.moveTo(side, 70 + i * 38);
+    ctx.lineTo(targetX - 80, targetY + 160);
+    ctx.lineTo(targetX + 80, targetY + 160);
+    ctx.closePath();
+    ctx.fill();
+  }
+  for (let i = 0; i < 16; i += 1) {
+    ctx.fillStyle = colors[i % colors.length].replace("0.2", "0.55").replace("0.28", "0.55").replace("0.26", "0.55").replace("0.24", "0.55").replace("0.22", "0.55");
+    ctx.beginPath();
+    ctx.arc(
+      ((i * 87 + floatTime * 240) % (WORLD_WIDTH + 140)) - 70,
+      250 + Math.sin(floatTime * 9 + i) * 180,
+      12 + Math.sin(floatTime * 13 + i) * 5,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
   }
   ctx.restore();
 }
@@ -831,17 +883,28 @@ window.addEventListener("keydown", (event) => {
 window.addEventListener("keyup", (event) => keyState.delete(event.code));
 
 canvas.addEventListener("pointerdown", (event) => {
-  pointerTarget = worldFromEvent(event);
+  const point = worldFromEvent(event);
+  pointerTarget = point;
+  pointerStart = point;
+  pointerMoved = false;
   canvas.setPointerCapture(event.pointerId);
 });
 canvas.addEventListener("pointermove", (event) => {
-  if (event.buttons) pointerTarget = worldFromEvent(event);
+  if (!event.buttons) return;
+  const point = worldFromEvent(event);
+  if (pointerStart && Math.hypot(point.x - pointerStart.x, point.y - pointerStart.y) > 18) {
+    pointerMoved = true;
+  }
+  pointerTarget = point;
 });
 canvas.addEventListener("pointerup", () => {
+  if (!pointerMoved) jump();
   pointerTarget = null;
+  pointerStart = null;
 });
 canvas.addEventListener("pointercancel", () => {
   pointerTarget = null;
+  pointerStart = null;
 });
 
 controlButtons.forEach((button) => {

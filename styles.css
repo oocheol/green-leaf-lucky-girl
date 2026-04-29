@@ -166,56 +166,6 @@ button {
   box-shadow: 0 5px 0 #167045, 0 10px 18px rgba(22, 112, 69, 0.18);
 }
 
-.controls {
-  position: absolute;
-  z-index: 4;
-  left: 50%;
-  bottom: 18px;
-  transform: translateX(-50%);
-  display: grid;
-  gap: 5px;
-  justify-items: center;
-}
-
-.controls div {
-  display: flex;
-  gap: 7px;
-}
-
-.controls button {
-  display: grid;
-  width: 62px;
-  height: 48px;
-  place-items: center;
-  border: 2px solid rgba(255, 255, 255, 0.9);
-  border-radius: 999px;
-  color: #246046;
-  background: rgba(255, 255, 255, 0.63);
-  font-size: 18px;
-  font-weight: 900;
-  box-shadow: 0 7px 14px rgba(41, 105, 71, 0.16);
-  backdrop-filter: blur(7px);
-}
-
-.controls button[data-dir="jump"] {
-  width: 82px;
-  color: #7b5a00;
-  background: rgba(255, 240, 150, 0.78);
-}
-
-.controls button:active,
-.controls button.pressed {
-  color: #fff;
-  background: #31aa68;
-  transform: translateY(2px);
-}
-
-@media (pointer: fine) and (min-width: 780px) {
-  .controls {
-    opacity: 0.4;
-  }
-}
-
 @media (max-width: 420px) {
   .game-shell {
     padding: 0;
@@ -240,17 +190,4 @@ button {
     min-height: 36px;
   }
 
-  .controls {
-    left: 50%;
-    bottom: max(12px, env(safe-area-inset-bottom));
-  }
-
-  .controls button {
-    width: 58px;
-    height: 46px;
-  }
-
-  .controls button[data-dir="jump"] {
-    width: 78px;
-  }
 }
