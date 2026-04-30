@@ -5,7 +5,6 @@ const bestEl = document.querySelector("#best");
 const luckyStatusEl = document.querySelector("#luckyStatus");
 const startOverlay = document.querySelector("#startOverlay");
 const startButton = document.querySelector("#startButton");
-const controlButtons = [...document.querySelectorAll("[data-dir]")];
 
 const WORLD_WIDTH = 900;
 const WORLD_HEIGHT = 1400;
@@ -986,6 +985,7 @@ window.addEventListener("keydown", (event) => {
 window.addEventListener("keyup", (event) => keyState.delete(event.code));
 
 canvas.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
   const point = worldFromEvent(event);
   pointerTarget = point;
   pointerStart = point;
@@ -993,6 +993,7 @@ canvas.addEventListener("pointerdown", (event) => {
   canvas.setPointerCapture(event.pointerId);
 });
 canvas.addEventListener("pointermove", (event) => {
+  event.preventDefault();
   if (!event.buttons) return;
   const point = worldFromEvent(event);
   if (pointerStart && Math.hypot(point.x - pointerStart.x, point.y - pointerStart.y) > 18) {
@@ -1000,42 +1001,19 @@ canvas.addEventListener("pointermove", (event) => {
   }
   pointerTarget = point;
 });
-canvas.addEventListener("pointerup", () => {
+canvas.addEventListener("pointerup", (event) => {
+  event.preventDefault();
   if (!pointerMoved) jump();
   pointerTarget = null;
   pointerStart = null;
 });
-canvas.addEventListener("pointercancel", () => {
+canvas.addEventListener("pointercancel", (event) => {
+  event.preventDefault();
   pointerTarget = null;
   pointerStart = null;
 });
-
-controlButtons.forEach((button) => {
-  const dir = button.dataset.dir;
-  const press = (event) => {
-    event.preventDefault();
-    if (dir === "jump") {
-      jump();
-      button.classList.add("pressed");
-      return;
-    }
-    if (dir === "up" && !canFly()) {
-      jump();
-      button.classList.add("pressed");
-      return;
-    }
-    keyState.add(dir);
-    button.classList.add("pressed");
-  };
-  const release = (event) => {
-    event.preventDefault();
-    if (dir !== "jump") keyState.delete(dir);
-    button.classList.remove("pressed");
-  };
-  button.addEventListener("pointerdown", press);
-  button.addEventListener("pointerup", release);
-  button.addEventListener("pointercancel", release);
-  button.addEventListener("pointerleave", release);
+canvas.addEventListener("contextmenu", (event) => {
+  event.preventDefault();
 });
 
 resize();
