@@ -5,13 +5,20 @@ const bestEl = document.querySelector("#best");
 const luckyStatusEl = document.querySelector("#luckyStatus");
 const startOverlay = document.querySelector("#startOverlay");
 const startButton = document.querySelector("#startButton");
+const adButton = document.querySelector("#adButton");
+const magnetButton = document.querySelector("#magnetButton");
+const fortuneButton = document.querySelector("#fortuneButton");
+const fortuneModal = document.querySelector("#fortuneModal");
+const fortuneTitleEl = document.querySelector("#fortuneTitle");
+const fortuneTextEl = document.querySelector("#fortuneText");
+const fortuneCloseButton = document.querySelector("#fortuneCloseButton");
+const fortuneCardButtons = [...document.querySelectorAll("[data-card]")];
 
 const WORLD_WIDTH = 900;
 const WORLD_HEIGHT = 1400;
 const PLAYER_BASE_RADIUS = 34;
 const LEAF_RADIUS = 23;
-const CLOVER_CHANCE = 0.2;
-const TOMATO_CHANCE = 0.1;
+const CLOVER_CHANCE = 0.01;
 const LUCKY_DURATION = 7000;
 const GROUND_Y = WORLD_HEIGHT - 120;
 const WIND_DURATION = 5200;
@@ -22,9 +29,11 @@ const MAX_JUMPS = 2;
 const TRIPLE_JUMP_SCORE = 33;
 const FLY_SCORE = 333;
 const FORTUNE_SCORE = 777;
-const TOMATO_DANCE_DURATION = 4600;
 const GREEN_DANCE_DURATION = 5200;
 const FORTUNE_RAIN_DURATION = 7200;
+const MAGNET_DURATION = 12000;
+const MAGNET_STRENGTH = 860;
+const REWARDED_AD_UNIT_PATH = "";
 
 let dpr = 1;
 let scale = 1;
@@ -34,17 +43,20 @@ let score = 0;
 let greenLeafCount = 0;
 let nextGreenDanceAt = 100;
 let best = Number(localStorage.getItem("leafLuckyBest") || 0);
+let coins = Number(localStorage.getItem("leafLuckyCoins") || 0);
 let luckyUntil = 0;
 let floatTime = 0;
 let spawnTimer = 0;
 let windUntil = 0;
 let nextWindAt = 0;
 let windPower = 0;
-let tomatoDanceUntil = 0;
 let greenDanceUntil = 0;
 let fortuneRainUntil = 0;
+let magnetUntil = 0;
 let flyAnnounced = false;
 let fortuneAnnounced = false;
+let fortuneUnlocked = false;
+let adLoading = false;
 let confetti = [];
 let leaves = [];
 let keyState = new Set();
@@ -63,6 +75,7 @@ const player = {
 };
 
 bestEl.textContent = best;
+updateActionPanel(performance.now());
 
 function resize() {
   const rect = canvas.getBoundingClientRect();
@@ -90,11 +103,12 @@ function resetGame() {
   windUntil = 0;
   nextWindAt = performance.now() + 6000 + Math.random() * 6500;
   windPower = 0;
-  tomatoDanceUntil = 0;
   greenDanceUntil = 0;
   fortuneRainUntil = 0;
+  magnetUntil = 0;
   flyAnnounced = false;
   fortuneAnnounced = false;
+  fortuneUnlocked = false;
   confetti = [];
   leaves = [];
   player.x = WORLD_WIDTH / 2;
@@ -109,15 +123,14 @@ function resetGame() {
 
 function spawnLeaf(y = -60) {
   const roll = Math.random();
-  const type = roll < TOMATO_CHANCE ? "tomato" : roll < TOMATO_CHANCE + CLOVER_CHANCE ? "clover" : "leaf";
+  const type = roll < CLOVER_CHANCE ? "clover" : "leaf";
   const fallSpeed = (175 + Math.random() * 95 + Math.min(110, score * 1.4)) * SPEED_MULTIPLIER;
   leaves.push({
     x: 70 + Math.random() * (WORLD_WIDTH - 140),
     y,
-    r: type === "tomato" ? 31 : type === "clover" ? 28 : LEAF_RADIUS,
+    r: type === "clover" ? 28 : LEAF_RADIUS,
     type,
     clover: type === "clover",
-    tomato: type === "tomato",
     fallSpeed,
     drift: -34 + Math.random() * 68,
     sway: 36 + Math.random() * 44,
@@ -154,10 +167,10 @@ function updateHud(now) {
   luckyStatusEl.classList.toggle("windy", isWindy(now));
   if (isFortuneRaining(now)) {
     luckyStatusEl.textContent = "행운 뿌리기";
-  } else if (isTomatoDancing(now)) {
-    luckyStatusEl.textContent = "토마토 댄스";
   } else if (isGreenDancing(now)) {
     luckyStatusEl.textContent = "초록짱짱 댄스";
+  } else if (isMagnetActive(now)) {
+    luckyStatusEl.textContent = `자석 ${Math.ceil((magnetUntil - now) / 1000)}초`;
   } else if (canFly()) {
     luckyStatusEl.textContent = "자유 비행";
   } else if (canTripleJump()) {
@@ -169,6 +182,7 @@ function updateHud(now) {
   } else {
     luckyStatusEl.textContent = "받을 준비";
   }
+  updateActionPanel(now);
 }
 
 function isWindy(now) {
@@ -198,16 +212,30 @@ function isFortuneRaining(now) {
   return now < fortuneRainUntil;
 }
 
-function isTomatoDancing(now) {
-  return now < tomatoDanceUntil;
-}
-
 function isGreenDancing(now) {
   return now < greenDanceUntil;
 }
 
 function isDanceTime(now) {
-  return isTomatoDancing(now) || isGreenDancing(now);
+  return isGreenDancing(now);
+}
+
+function isMagnetActive(now) {
+  return now < magnetUntil;
+}
+
+function canDrawFortune() {
+  return greenLeafCount >= FORTUNE_SCORE || fortuneUnlocked;
+}
+
+function updateActionPanel(now) {
+  magnetButton.textContent = isMagnetActive(now)
+    ? `자석 ${Math.ceil((magnetUntil - now) / 1000)}`
+    : `자석 ${coins}`;
+  magnetButton.disabled = coins <= 0 && !isMagnetActive(now);
+  fortuneButton.disabled = !canDrawFortune();
+  fortuneButton.textContent = canDrawFortune() ? "토마토 운세" : `${greenLeafCount}/777 운세`;
+  adButton.textContent = adLoading ? "광고 준비중" : `광고보기 · 코인 ${coins}`;
 }
 
 function update(dt, now) {
@@ -227,7 +255,6 @@ function update(dt, now) {
       piece.vy += 130 * dt;
     });
     confetti = confetti.filter((piece) => piece.life > 0);
-    if (isTomatoDancing(now)) spawnDanceSparkles(dt, now);
     if (isGreenDancing(now)) spawnGreenDanceSparkles(dt, now);
     updateHud(now);
     return;
@@ -292,8 +319,18 @@ function update(dt, now) {
   leaves = leaves.filter((leaf) => {
     leaf.spin += dt * (leaf.clover ? 4.6 : 3.2);
     const windPush = isWindy(now) ? windPower + Math.sin(floatTime * 12 + leaf.bob) * 165 : 0;
-    leaf.x += (leaf.drift + windPush + Math.sin(floatTime * 3.4 + leaf.bob) * leaf.sway) * dt;
-    leaf.y += leaf.fallSpeed * dt;
+    let pullX = 0;
+    let pullY = 0;
+    if (isMagnetActive(now) && leaf.type === "leaf") {
+      const dx = player.x - leaf.x;
+      const dy = getBasketCatchY(now) - leaf.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const pull = MAGNET_STRENGTH * (1 + Math.max(0, 1 - dist / 720));
+      pullX = (dx / dist) * pull;
+      pullY = (dy / dist) * pull;
+    }
+    leaf.x += (leaf.drift + windPush + pullX + Math.sin(floatTime * 3.4 + leaf.bob) * leaf.sway) * dt;
+    leaf.y += (leaf.fallSpeed + pullY) * dt;
     if (leaf.x < 38 || leaf.x > WORLD_WIDTH - 38) {
       leaf.x = clamp(leaf.x, 38, WORLD_WIDTH - 38);
       leaf.drift *= -0.78;
@@ -304,23 +341,17 @@ function update(dt, now) {
     const catchHeight = isLucky(now) ? 70 : 42;
     const caught = Math.abs(player.x - leaf.x) < catchWidth && Math.abs(catchY - leaf.y) < catchHeight;
     if (caught) {
-      if (leaf.tomato) {
-        score += 5;
-        tomatoDanceUntil = now + TOMATO_DANCE_DURATION;
-        danceStartedThisFrame = true;
-      } else {
-        score += leaf.clover ? 7 : 1;
-        if (!leaf.clover) {
-          greenLeafCount += 1;
-          if (greenLeafCount >= nextGreenDanceAt) {
-            greenDanceUntil = now + GREEN_DANCE_DURATION;
-            nextGreenDanceAt += 100;
-            danceStartedThisFrame = true;
-          }
+      score += leaf.clover ? 7 : 1;
+      if (!leaf.clover) {
+        greenLeafCount += 1;
+        if (greenLeafCount >= nextGreenDanceAt) {
+          greenDanceUntil = now + GREEN_DANCE_DURATION;
+          nextGreenDanceAt += 100;
+          danceStartedThisFrame = true;
         }
       }
       if (leaf.clover) luckyUntil = now + LUCKY_DURATION;
-      burst(leaf.x, leaf.y, leaf.tomato ? "#ff7662" : leaf.clover ? "#f6cf4f" : "#49bd72");
+      burst(leaf.x, leaf.y, leaf.clover ? "#f6cf4f" : "#49bd72");
       return false;
     }
     return leaf.y < WORLD_HEIGHT + 90;
@@ -335,6 +366,10 @@ function update(dt, now) {
     fortuneAnnounced = true;
     fortuneRainUntil = now + FORTUNE_RAIN_DURATION;
     burst(player.x, player.y - 160, "#f7d75b");
+  }
+  if (!fortuneUnlocked && greenLeafCount >= FORTUNE_SCORE) {
+    fortuneUnlocked = true;
+    burst(player.x, player.y - 180, "#ff7662");
   }
 
   if (score > best) {
@@ -363,7 +398,6 @@ function draw(now) {
   leaves.forEach(drawCollectible);
   confetti.forEach(drawConfetti);
   drawPlayer(now);
-  if (isTomatoDancing(now)) drawTomatoDance(now);
   if (isGreenDancing(now)) drawGreenDance(now);
 }
 
@@ -418,9 +452,7 @@ function drawCollectible(leaf) {
   ctx.save();
   ctx.translate(leaf.x, leaf.y);
   ctx.rotate(leaf.spin + Math.sin(floatTime * 8 + leaf.bob) * (isWindy(performance.now()) ? 0.45 : 0.16));
-  if (leaf.tomato) {
-    drawTomato(0, 0, leaf.r, floatTime + leaf.bob);
-  } else if (leaf.clover) {
+  if (leaf.clover) {
     drawClover(0, 0, leaf.r);
   } else {
     drawLeaf(0, 0, leaf.r, "#35ad61", "#247e49");
@@ -539,6 +571,141 @@ function jump() {
   burst(player.x, player.y + 28, "#bff7d4");
 }
 
+function grantCoin() {
+  coins += 1;
+  localStorage.setItem("leafLuckyCoins", String(coins));
+  burst(player.x || WORLD_WIDTH / 2, Math.max(180, player.y - 160 || GROUND_Y - 160), "#f7d75b");
+  updateActionPanel(performance.now());
+}
+
+function useMagnet() {
+  const now = performance.now();
+  if (isMagnetActive(now)) return;
+  if (coins <= 0) {
+    luckyStatusEl.textContent = "코인이 필요해요";
+    return;
+  }
+  coins -= 1;
+  localStorage.setItem("leafLuckyCoins", String(coins));
+  magnetUntil = now + MAGNET_DURATION;
+  burst(player.x, getBasketCatchY(now), "#7df2a0");
+  updateHud(now);
+}
+
+function showRewardedAd() {
+  if (adLoading) return;
+  if (!REWARDED_AD_UNIT_PATH) {
+    luckyStatusEl.textContent = "광고 설정 필요";
+    alert("리워드 광고를 붙이려면 Google Ad Manager의 rewarded web 광고 단위 경로를 game.js의 REWARDED_AD_UNIT_PATH에 넣어야 합니다. 설정 전에는 실제 코인이 지급되지 않습니다.");
+    return;
+  }
+
+  adLoading = true;
+  updateActionPanel(performance.now());
+  loadGooglePublisherTag()
+    .then(() => requestRewardedAd())
+    .catch(() => {
+      adLoading = false;
+      luckyStatusEl.textContent = "광고 로드 실패";
+      updateActionPanel(performance.now());
+    });
+}
+
+function loadGooglePublisherTag() {
+  return new Promise((resolve, reject) => {
+    if (window.googletag?.apiReady) {
+      resolve();
+      return;
+    }
+    window.googletag = window.googletag || { cmd: [] };
+    const existing = document.querySelector("script[data-gpt]");
+    if (existing) {
+      existing.addEventListener("load", resolve, { once: true });
+      existing.addEventListener("error", reject, { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://securepubads.g.doubleclick.net/tag/js/gpt.js";
+    script.async = true;
+    script.dataset.gpt = "true";
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+function requestRewardedAd() {
+  window.googletag.cmd.push(() => {
+    let rewardedSlot = window.googletag.defineOutOfPageSlot(
+      REWARDED_AD_UNIT_PATH,
+      window.googletag.enums.OutOfPageFormat.REWARDED
+    );
+    if (!rewardedSlot) {
+      adLoading = false;
+      luckyStatusEl.textContent = "광고 없음";
+      updateActionPanel(performance.now());
+      return;
+    }
+
+    rewardedSlot.addService(window.googletag.pubads());
+    window.googletag.enableServices();
+    let granted = false;
+
+    window.googletag.pubads().addEventListener("rewardedSlotReady", (event) => {
+      if (event.slot !== rewardedSlot) return;
+      event.makeRewardedVisible();
+    });
+    window.googletag.pubads().addEventListener("rewardedSlotGranted", (event) => {
+      if (event.slot !== rewardedSlot || granted) return;
+      granted = true;
+      grantCoin();
+    });
+    window.googletag.pubads().addEventListener("rewardedSlotClosed", (event) => {
+      if (event.slot !== rewardedSlot) return;
+      window.googletag.destroySlots([rewardedSlot]);
+      rewardedSlot = null;
+      adLoading = false;
+      updateActionPanel(performance.now());
+    });
+    window.googletag.display(rewardedSlot);
+  });
+}
+
+function openFortuneModal() {
+  if (!canDrawFortune()) {
+    luckyStatusEl.textContent = "777잎 필요";
+    return;
+  }
+  fortuneModal.classList.remove("hidden");
+  fortuneTitleEl.textContent = "카드 1장을 골라요";
+  fortuneTextEl.textContent = "토마토 카드가 오늘의 운세를 숨겨뒀어요.";
+  fortuneCardButtons.forEach((button) => {
+    button.disabled = false;
+    button.classList.remove("picked");
+  });
+}
+
+function closeFortuneModal() {
+  fortuneModal.classList.add("hidden");
+}
+
+function pickFortune(cardIndex) {
+  const fortunes = [
+    "오늘은 초록잎이 알아서 굴러오는 날! 작은 선택도 럭키하게 풀려요.",
+    "토마토처럼 통통 튀는 기운이 있어요. 망설이지 말고 한 번 더 점프!",
+    "네잎클로버 기운이 주변에 반짝여요. 도움을 받으면 더 멀리 날 수 있어요.",
+    "초록 자석 같은 매력이 강해지는 날. 원하는 것을 빠르게 끌어당겨요.",
+    "오늘의 행운색은 초록, 행운 행동은 두둠칫. 웃으면 보너스 행운이 와요.",
+  ];
+  const picked = (greenLeafCount + score + cardIndex + new Date().getDate()) % fortunes.length;
+  fortuneTitleEl.textContent = cardIndex === 0 ? "토마토 카드!" : "클로버 카드!";
+  fortuneTextEl.textContent = fortunes[picked];
+  fortuneCardButtons.forEach((button, index) => {
+    button.disabled = true;
+    button.classList.toggle("picked", index === cardIndex);
+  });
+}
+
 function drawBasket(x, y, now = performance.now()) {
   ctx.save();
   ctx.translate(x, y);
@@ -606,115 +773,6 @@ function drawCheekFlower(x, y) {
   ctx.beginPath();
   ctx.arc(0, 0, 2.4, 0, Math.PI * 2);
   ctx.fill();
-  ctx.restore();
-}
-
-function drawTomato(x, y, r, dance = 0) {
-  ctx.save();
-  ctx.translate(x, y + Math.sin(dance * 8) * 3);
-  ctx.fillStyle = "#f25f4c";
-  ctx.strokeStyle = "#361717";
-  ctx.lineWidth = Math.max(3, r * 0.1);
-  ctx.beginPath();
-  ctx.arc(0, 4, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = "#fff3c4";
-  ctx.beginPath();
-  ctx.arc(-r * 0.45, -r * 0.4, r * 0.2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#62bd67";
-  for (let i = 0; i < 5; i += 1) {
-    ctx.save();
-    ctx.rotate((i * Math.PI * 2) / 5);
-    ctx.beginPath();
-    ctx.ellipse(0, -r * 0.92, r * 0.2, r * 0.38, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-  ctx.fillStyle = "#0f0f0f";
-  ctx.beginPath();
-  ctx.arc(-r * 0.32, -r * 0.05, r * 0.14, 0, Math.PI * 2);
-  ctx.arc(r * 0.32, -r * 0.05, r * 0.14, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "#0f0f0f";
-  ctx.lineWidth = Math.max(2, r * 0.07);
-  ctx.beginPath();
-  ctx.moveTo(-r * 0.12, r * 0.22);
-  ctx.quadraticCurveTo(0, r * 0.42, r * 0.12, r * 0.22);
-  ctx.stroke();
-  ctx.strokeStyle = "#ffd96a";
-  ctx.lineWidth = 4;
-  for (let i = 0; i < 2; i += 1) {
-    const sx = i === 0 ? -r * 1.2 : r * 1.2;
-    ctx.beginPath();
-    ctx.moveTo(sx, -r * 0.9);
-    ctx.quadraticCurveTo(sx + Math.sin(dance * 10 + i) * 18, -r * 1.35, sx + 8, -r * 1.7);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function drawTomatoDance(now) {
-  const life = Math.max(0, (tomatoDanceUntil - now) / TOMATO_DANCE_DURATION);
-  ctx.save();
-  ctx.globalAlpha = Math.min(1, life * 2.2);
-  drawPsychedelicLights();
-
-  ctx.fillStyle = "rgba(255, 251, 218, 0.9)";
-  roundedRect(62, 106, WORLD_WIDTH - 124, 104, 30);
-  ctx.fill();
-  ctx.fillStyle = "#b83b2e";
-  ctx.font = "900 36px 'Trebuchet MS', sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("토마토 될거야~! 쥬스 될거야~!", WORLD_WIDTH / 2, 158);
-
-  ctx.fillStyle = "rgba(255, 96, 76, 0.16)";
-  ctx.beginPath();
-  ctx.ellipse(WORLD_WIDTH / 2, GROUND_Y - 54, 330 + Math.sin(floatTime * 12) * 18, 118, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  for (let i = 0; i < 4; i += 1) {
-    const x = WORLD_WIDTH / 2 + (i - 1.5) * 105 + Math.sin(floatTime * 16 + i) * 22;
-    const y = 288 + Math.sin(floatTime * 13 + i) * 36;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(Math.sin(floatTime * 18 + i) * 0.55);
-    drawTomato(0, 0, 40 + Math.sin(floatTime * 12 + i) * 5, floatTime * 2 + i);
-    ctx.restore();
-  }
-
-  ctx.save();
-  const partnerX = WORLD_WIDTH / 2 + 185 + Math.sin(floatTime * 15) * 78;
-  const partnerY = GROUND_Y - 145 + Math.cos(floatTime * 18) * 80;
-  ctx.translate(partnerX, partnerY);
-  ctx.rotate(Math.sin(floatTime * 20) * 0.5);
-  drawTomato(0, 0, 58 + Math.sin(floatTime * 16) * 7, floatTime * 2.3);
-  ctx.restore();
-
-  ctx.save();
-  const partnerX2 = WORLD_WIDTH / 2 - 205 + Math.cos(floatTime * 17) * 86;
-  const partnerY2 = GROUND_Y - 190 + Math.sin(floatTime * 19) * 92;
-  ctx.translate(partnerX2, partnerY2);
-  ctx.rotate(Math.cos(floatTime * 21) * 0.6);
-  drawTomato(0, 0, 48 + Math.cos(floatTime * 15) * 6, floatTime * 2.5);
-  ctx.restore();
-
-  ctx.strokeStyle = "#f7c84b";
-  ctx.lineWidth = 7;
-  ctx.lineCap = "round";
-  for (let i = 0; i < 8; i += 1) {
-    const x = 90 + i * 96;
-    const y = 395 + Math.sin(floatTime * 11 + i) * 42;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.quadraticCurveTo(x + 20, y - 42, x + 44, y - 4);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(x + 49, y + 4, 8, 0, Math.PI * 2);
-    ctx.stroke();
-  }
   ctx.restore();
 }
 
@@ -832,33 +890,6 @@ function spawnGreenDanceSparkles(dt, now) {
   }
 }
 
-function spawnDanceSparkles(dt, now) {
-  const count = Math.ceil(26 * dt);
-  for (let i = 0; i < count; i += 1) {
-    const angle = Math.random() * Math.PI * 2;
-    confetti.push({
-      x: player.x + Math.cos(angle) * (80 + Math.random() * 150),
-      y: player.y - 95 + Math.sin(angle) * (40 + Math.random() * 85),
-      vx: Math.cos(angle) * (110 + Math.random() * 230),
-      vy: Math.sin(angle) * (110 + Math.random() * 200) - 120,
-      life: 0.55 + Math.random() * 0.75,
-      color: Math.random() < 0.5 ? "#ff6d5e" : "#ffd95c",
-      size: 6 + Math.random() * 8,
-    });
-  }
-  if (Math.floor(now / 120) % 2 === 0) {
-    confetti.push({
-      x: player.x + Math.sin(floatTime * 20) * 120,
-      y: player.y - 160 + Math.cos(floatTime * 18) * 40,
-      vx: -80 + Math.random() * 160,
-      vy: -180 - Math.random() * 80,
-      life: 0.7,
-      color: "#ff8a75",
-      size: 12,
-    });
-  }
-}
-
 function spawnFortuneSparkles(dt, now) {
   const count = Math.ceil(18 * dt);
   for (let i = 0; i < count; i += 1) {
@@ -972,6 +1003,13 @@ function loop(now) {
 startButton.addEventListener("click", () => {
   startOverlay.classList.add("hidden");
   resetGame();
+});
+adButton.addEventListener("click", showRewardedAd);
+magnetButton.addEventListener("click", useMagnet);
+fortuneButton.addEventListener("click", openFortuneModal);
+fortuneCloseButton.addEventListener("click", closeFortuneModal);
+fortuneCardButtons.forEach((button) => {
+  button.addEventListener("click", () => pickFortune(Number(button.dataset.card)));
 });
 
 window.addEventListener("resize", resize);

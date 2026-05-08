@@ -86,6 +86,110 @@ button {
   pointer-events: none;
 }
 
+.action-panel {
+  position: absolute;
+  z-index: 4;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.action-panel button,
+.fortune-box button {
+  min-height: 44px;
+  padding: 0 8px;
+  border: 2px solid rgba(255, 255, 255, 0.88);
+  border-radius: 14px;
+  color: #24513b;
+  background: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 7px 14px rgba(41, 105, 71, 0.16);
+  backdrop-filter: blur(8px);
+}
+
+.action-panel button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+#adButton {
+  color: #875000;
+  background: rgba(255, 237, 145, 0.85);
+}
+
+#magnetButton {
+  color: #126346;
+  background: rgba(191, 255, 219, 0.84);
+}
+
+#fortuneButton {
+  color: #9a3126;
+  background: rgba(255, 204, 194, 0.86);
+}
+
+.fortune-modal {
+  position: absolute;
+  z-index: 6;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(28, 76, 50, 0.34);
+  backdrop-filter: blur(8px);
+}
+
+.fortune-modal.hidden {
+  display: none;
+}
+
+.fortune-box {
+  width: min(100%, 370px);
+  padding: 22px;
+  border: 3px solid rgba(255, 255, 255, 0.85);
+  border-radius: 24px;
+  color: #244238;
+  background: rgba(255, 253, 231, 0.95);
+  text-align: center;
+  box-shadow: 0 20px 42px rgba(40, 87, 60, 0.25);
+}
+
+.fortune-box h2 {
+  margin: 4px 0 16px;
+  color: #bd3b2f;
+  font-size: 25px;
+}
+
+.fortune-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.fortune-cards button {
+  min-height: 120px;
+  font-size: 54px;
+  background: linear-gradient(145deg, #fff9c9, #ffd5c9);
+}
+
+.fortune-cards button.picked {
+  border-color: #40b86a;
+  background: linear-gradient(145deg, #d9ffd8, #fff4a8);
+  transform: translateY(-4px);
+}
+
+#fortuneText {
+  min-height: 62px;
+  margin: 14px 0 16px;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .hud > div {
   min-height: 54px;
   padding: 8px 10px;
@@ -203,6 +307,17 @@ button {
   .status-pill {
     grid-column: 1 / -1;
     min-height: 36px;
+  }
+
+  .action-panel {
+    left: 10px;
+    right: 10px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  .action-panel button {
+    min-height: 42px;
+    font-size: 12px;
   }
 
 }
