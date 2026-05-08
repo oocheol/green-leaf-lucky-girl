@@ -34,6 +34,7 @@ const FORTUNE_RAIN_DURATION = 7200;
 const MAGNET_DURATION = 12000;
 const MAGNET_STRENGTH = 860;
 const REWARDED_AD_UNIT_PATH = "";
+const ADSENSE_PUBLISHER_ID = "ca-pub-5786432422734713";
 
 let dpr = 1;
 let scale = 1;
@@ -63,6 +64,7 @@ let keyState = new Set();
 let pointerTarget = null;
 let pointerStart = null;
 let pointerMoved = false;
+let lastTouchEndAt = 0;
 
 const player = {
   x: WORLD_WIDTH / 2,
@@ -595,8 +597,9 @@ function useMagnet() {
 function showRewardedAd() {
   if (adLoading) return;
   if (!REWARDED_AD_UNIT_PATH) {
-    luckyStatusEl.textContent = "광고 설정 필요";
-    alert("리워드 광고를 붙이려면 Google Ad Manager의 rewarded web 광고 단위 경로를 game.js의 REWARDED_AD_UNIT_PATH에 넣어야 합니다. 설정 전에는 실제 코인이 지급되지 않습니다.");
+    luckyStatusEl.textContent = "테스트 코인 지급";
+    grantCoin();
+    alert(`AdSense 계정(${ADSENSE_PUBLISHER_ID})은 연결되어 있어요. 다만 게임 버튼을 누르고 코인을 지급하는 리워드 광고는 Google Ad Manager의 rewarded web 경로가 필요합니다. 지금은 테스트 코인 1개를 지급했어요.`);
     return;
   }
 
@@ -1013,6 +1016,24 @@ fortuneCardButtons.forEach((button) => {
 });
 
 window.addEventListener("resize", resize);
+window.addEventListener(
+  "dblclick",
+  (event) => {
+    event.preventDefault();
+  },
+  { passive: false }
+);
+window.addEventListener(
+  "touchend",
+  (event) => {
+    const now = performance.now();
+    if (now - lastTouchEndAt < 360) {
+      event.preventDefault();
+    }
+    lastTouchEndAt = now;
+  },
+  { passive: false }
+);
 window.addEventListener("keydown", (event) => {
   keyState.add(event.code);
   if ((event.code === "Space" || event.code === "ArrowUp" || event.code === "KeyW") && !event.repeat) {
