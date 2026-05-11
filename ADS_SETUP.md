@@ -55,3 +55,7 @@ Without `REWARDED_AD_UNIT_PATH`, the button is a test reward only. It does not s
 AdSense can verify and monetize the site, and AdSense Offerwall can show a rewarded ad choice for content access. It does not provide this game with a direct JavaScript callback for "the player finished an ad, now grant 1 coin."
 
 For button-based in-game coin rewards, use Google Ad Manager rewarded web ads and set `REWARDED_AD_UNIT_PATH`.
+
+## Policy note
+
+Do not let Auto ads appear on empty overlays, alerts, loading-only screens, or game-only transition screens. Google-served ads need to be associated with real publisher content. This site now includes visible gameplay guide content below the game so the page has crawlable, user-facing content, but Auto ads should still be reviewed in AdSense preview and excluded from places that cover or interrupt the game.
